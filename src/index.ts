@@ -1,11 +1,18 @@
-import { Context, Schema } from 'koishi'
+import { Context, Schema } from "koishi";
+import DiceService from "./services";
 
-export const name = 'r-dice-core'
+declare module "koishi" {
+  interface Context {
+    dice: DiceService;
+  }
+}
+
+export const name = "r-dice-core";
 
 export interface Config {}
 
-export const Config: Schema<Config> = Schema.object({})
+export const Config: Schema<Config> = Schema.object({});
 
 export function apply(ctx: Context, config: Config) {
-  // write your plugin here
+  ctx.set("dice", new DiceService(ctx));
 }
