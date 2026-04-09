@@ -11,11 +11,12 @@ function handleInitCommand(session: Session, rule: string) {
   if (!validRules.includes(rule)) {
     return `无效的游戏规则。可用规则：${validRules.join(", ")}`;
   }
-  /*
-       TODO: 这里可以添加初始化游戏规则的逻辑.
-       * 1. 负责当前群的规则设置落库
-       * 2. 负责相关过滤器设置
-       */
+  /**
+   * TODO: 这里可以添加初始化游戏规则的逻辑.
+   * 1. 负责当前群的规则设置落库
+   * 2. 负责相关过滤器设置
+   */
+  return `游戏规则已设置为 ${rule}！`;
 }
 
 export function registerInitCommand(mainCommand: Command) {
