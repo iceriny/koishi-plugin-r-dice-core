@@ -1,10 +1,11 @@
 import { randomInt } from "../utils/random";
 
-/** 支持的骰子面数。 */
-export type DiceSide = 4 | 6 | 8 | 10 | 12 | 20 | 100;
-
 /** 当前实现允许解析的骰子面数集合。 */
-export const DICE_SIDES: readonly DiceSide[] = [4, 6, 8, 10, 12, 20, 100];
+export const DICE_SIDES = [4, 6, 8, 10, 12, 20, 100] as const;
+
+/** 支持的骰子面数。 */
+export type DiceSide = typeof DICE_SIDES[number];
+
 
 /** 单颗骰子的配置。 */
 export interface DiceOptions {
