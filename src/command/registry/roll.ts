@@ -1,8 +1,12 @@
 import { Context } from "koishi";
 import DiceGroup, { DICE_SIDES } from "../../dice";
+import type RDiceDatabaseService from "../../services/database";
 
 /** 注册掷骰命令。 */
-export function registerRollCommand(ctx: Context) {
+export function registerRollCommand(
+  ctx: Context,
+  rdiceDbService: RDiceDatabaseService,
+) {
   const diceSideSet = new Set<number>(DICE_SIDES);
 
   ctx
@@ -22,7 +26,7 @@ export function registerRollCommand(ctx: Context) {
         // 优先读取频道默认骰面，缺失时再回退到 d20。
         const defaultDiceSides =
           session?.platform && session.channelId
-            ? await ctx.rdiceDb.getChannelDefaultDice(
+            ? await rdiceDbService.getChannelDefaultDice(
                 session.platform,
                 session.channelId,
               )

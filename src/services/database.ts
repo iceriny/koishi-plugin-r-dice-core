@@ -17,6 +17,8 @@ import {
   type RDiceRuleRef,
 } from "../database";
 
+type RDiceFieldKey<T extends object> = Extract<keyof T, string>;
+
 /** 频道配置补丁。 */
 export interface RDiceChannelConfigPatch {
   guildId?: string | null;
@@ -55,6 +57,28 @@ export default class RDiceDatabaseService extends Service {
     super(ctx, "rdiceDb");
   }
 
+  /**
+   * 读取单行数据，并按需裁剪字段。
+   * @param table 表名
+   * @param query 查询条件
+   * @param fields 需要的字段列表
+   * @returns 第一条匹配记录，不存在时返回 `null`
+   */
+  private async getSingleRow<T extends object, K extends RDiceFieldKey<T>>(
+    table: string,
+    query: unknown,
+    fields: readonly K[],
+  ): Promise<Pick<T, K> | null> {
+    const rows = await this.ctx.database.get(
+      table as never,
+      query as never,
+      {
+        fields: [...fields] as never,
+      },
+    );
+    return (rows[0] ?? null) as unknown as Pick<T, K> | null;
+  }
+
   /** 获取频道主键。 */
   public createChannelPrimaryId(platform: string, channelId: string): string {
     return createChannelPrimaryId(platform, channelId);
@@ -75,6 +99,27 @@ export default class RDiceDatabaseService extends Service {
       createChannelPrimaryId(platform, channelId),
     );
     return rows[0] ?? null;
+  }
+
+  /** 按字段读取频道数据。 */
+  public async getChannelFields<K extends RDiceFieldKey<RDiceChannel>>(
+    platform: string,
+    channelId: string,
+    fields: readonly K[],
+  ): Promise<Pick<RDiceChannel, K> | null> {
+    return this.getSingleRow<RDiceChannel, K>(
+      RDICE_TABLES.channel,
+      createChannelPrimaryId(platform, channelId),
+      fields,
+    );
+  }
+
+  /** 按主键更新频道。 */
+  public async patchChannelById(
+    id: string,
+    patch: Partial<RDiceChannel>,
+  ) {
+    return this.ctx.database.set(RDICE_TABLES.channel, id, patch);
   }
 
   /**
@@ -123,7 +168,7 @@ export default class RDiceDatabaseService extends Service {
     platform: string,
     channelId: string,
   ): Promise<number> {
-    const channel = await this.getChannel(platform, channelId);
+    const channel = await this.getChannelFields(platform, channelId, ["rule"]);
     return channel?.rule.defaultDice ?? 20;
   }
 
@@ -153,6 +198,42 @@ export default class RDiceDatabaseService extends Service {
     });
   }
 
+  /** 按主键读取游戏。 */
+  public async getGameById(id: number): Promise<RDiceGame | null> {
+    const rows = await this.ctx.database.get(RDICE_TABLES.game, id);
+    return rows[0] ?? null;
+  }
+
+  /** 按字段读取游戏。 */
+  public async getGameFields<K extends RDiceFieldKey<RDiceGame>>(
+    id: number,
+    fields: readonly K[],
+  ): Promise<Pick<RDiceGame, K> | null> {
+    return this.getSingleRow<RDiceGame, K>(RDICE_TABLES.game, id, fields);
+  }
+
+  /** 读取频道当前激活游戏的指定字段。 */
+  public async getActiveGameFields<K extends RDiceFieldKey<RDiceGame>>(
+    channelPrimaryId: string,
+    fields: readonly K[],
+  ): Promise<Pick<RDiceGame, K> | null> {
+    const channel = await this.getSingleRow<RDiceChannel, "activeGameId">(
+      RDICE_TABLES.channel,
+      channelPrimaryId,
+      ["activeGameId"],
+    );
+    if (!channel?.activeGameId) return null;
+    return this.getGameFields(channel.activeGameId, fields);
+  }
+
+  /** 按主键更新游戏。 */
+  public async patchGameById(
+    id: number,
+    patch: Partial<RDiceGame>,
+  ) {
+    return this.ctx.database.set(RDICE_TABLES.game, id, patch);
+  }
+
   /** 按频道与名称查找游戏。 */
   public async getGameByName(
     channelPrimaryId: string,
@@ -161,6 +242,11 @@ export default class RDiceDatabaseService extends Service {
     const rows = await this.ctx.database.get(RDICE_TABLES.game, {
       channelId: channelPrimaryId,
       name,
+    }, {
+      limit: 1,
+      sort: {
+        updatedAt: "desc",
+      },
     });
     return rows[0] ?? null;
   }
@@ -171,6 +257,21 @@ export default class RDiceDatabaseService extends Service {
       channelId: channelPrimaryId,
       status: {
         $ne: "archived",
+      },
+    }, {
+      sort: {
+        updatedAt: "desc",
+      },
+    });
+  }
+
+  /** 按游戏读取全部日志，按时间正序返回。 */
+  public async listLogsByGame(gameId: number): Promise<RDiceLog[]> {
+    return this.ctx.database.get(RDICE_TABLES.log, {
+      gameId,
+    }, {
+      sort: {
+        createdAt: "asc",
       },
     });
   }
@@ -197,6 +298,32 @@ export default class RDiceDatabaseService extends Service {
     userId: string,
   ): Promise<RDiceCharacter[]> {
     return this.ctx.database.get(RDICE_TABLES.character, { platform, userId });
+  }
+
+  /** 按主键读取角色卡。 */
+  public async getCharacterById(id: number): Promise<RDiceCharacter | null> {
+    const rows = await this.ctx.database.get(RDICE_TABLES.character, id);
+    return rows[0] ?? null;
+  }
+
+  /** 按字段读取角色卡。 */
+  public async getCharacterFields<K extends RDiceFieldKey<RDiceCharacter>>(
+    id: number,
+    fields: readonly K[],
+  ): Promise<Pick<RDiceCharacter, K> | null> {
+    return this.getSingleRow<RDiceCharacter, K>(
+      RDICE_TABLES.character,
+      id,
+      fields,
+    );
+  }
+
+  /** 按主键更新角色卡。 */
+  public async patchCharacterById(
+    id: number,
+    patch: Partial<RDiceCharacter>,
+  ) {
+    return this.ctx.database.set(RDICE_TABLES.character, id, patch);
   }
 
   /**
@@ -232,6 +359,42 @@ export default class RDiceDatabaseService extends Service {
       userId,
     });
     return rows[0] as RDiceBinding;
+  }
+
+  /** 读取玩家在某场游戏中的绑定。 */
+  public async getBinding(
+    gameId: number,
+    platform: string,
+    userId: string,
+  ): Promise<RDiceBinding | null> {
+    const rows = await this.ctx.database.get(RDICE_TABLES.binding, {
+      gameId,
+      platform,
+      userId,
+    });
+    return rows[0] ?? null;
+  }
+
+  /** 按字段读取玩家在某场游戏中的绑定。 */
+  public async getBindingFields<K extends RDiceFieldKey<RDiceBinding>>(
+    gameId: number,
+    platform: string,
+    userId: string,
+    fields: readonly K[],
+  ): Promise<Pick<RDiceBinding, K> | null> {
+    return this.getSingleRow<RDiceBinding, K>(
+      RDICE_TABLES.binding,
+      { gameId, platform, userId },
+      fields,
+    );
+  }
+
+  /** 按主键更新绑定。 */
+  public async patchBindingById(
+    id: number,
+    patch: Partial<RDiceBinding>,
+  ) {
+    return this.ctx.database.set(RDICE_TABLES.binding, id, patch);
   }
 
   /** 获取玩家在某场游戏中的当前角色卡。 */

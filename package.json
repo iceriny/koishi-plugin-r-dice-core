@@ -16,5 +16,11 @@
   ],
   "peerDependencies": {
     "koishi": "^4.18.11"
+  },
+  "koishi": {
+    "service": {
+      "required": ["database"],
+      "implements": ["dice", "rdiceDb", "rdiceObserver"]
+    }
   }
 }
